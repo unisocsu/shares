@@ -1,0 +1,56 @@
+
+name: Daily Repository ZIP Release
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-repository-release
+  cancel-in-progress: false
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Create ZIP archive
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist
+
+          git archive \
+            --format=zip \
+            --output=dist/shares.zip \
+            HEAD
+
+          test -s dist/shares.zip
+
+      - name: Create GitHub Release and upload ZIP
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_DATE: ${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="daily-${RUN_DATE}"
+
+          gh release create "$TAG" \
+            dist/shares.zip \
+            --repo "$REPOSITORY" \
+            --title "Daily backup ${RUN_DATE}" \
+            --notes "Automated ZIP snapshot of the repository." \
+            --latest=false
